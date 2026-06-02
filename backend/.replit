@@ -1,4 +1,4 @@
-run = "python main.py"
+entrypoint = "main.py"
 
 [nix]
 channel = "stable-24_05"
@@ -10,8 +10,8 @@ language = "python3"
 packageSearch = true
 guessImports = true
 
-[languages.python3]
-script = "python -m pip install -r requirements.txt"
+[unitTest]
+language = "python3"
 
 [deployment]
 run = ["sh", "-c", "python main.py"]

@@ -1,75 +1,28 @@
 """
-Loom – Database Helper with Turso + Local SQLite Support
+Loom – SQLite Database Helper
 Manages sync_logs and sync_report tables.
-
-Production: Turso (libSQL) – free, persistent, no credit card
-Local dev:  SQLite – file-based, no setup
+Pure SQLite – no external DB service needed, no credit card.
 """
 
 import os
 import sqlite3
 from datetime import datetime, timezone
 
-# Turso support via libsql-experimental
-TURSO_URL = os.environ.get("TURSO_DATABASE_URL", "")
-TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
-USE_TURSO = bool(TURSO_URL and TURSO_URL.startswith("libsql://") and TURSO_AUTH_TOKEN)
-
-# Column names for each table (used to convert tuples → dicts for Turso)
-SYNC_LOGS_COLUMNS = [
-    "id", "timestamp", "status", "details",
-    "orders_processed", "orders_updated", "orders_failed", "sync_type",
-]
-SYNC_REPORT_COLUMNS = [
-    "id", "sync_log_id", "order_number", "order_name", "tracking_number",
-    "postex_status", "shopify_status", "message", "rule", "priority",
-    "shipping_city", "updated_at",
-]
-
-
-def _get_turso_conn():
-    """Get a Turso/libSQL connection."""
-    try:
-        from libsql_experimental import connect
-        conn = connect(TURSO_URL, auth_token=TURSO_AUTH_TOKEN)
-        # libsql_experimental doesn't support row_factory
-        return conn
-    except ImportError:
-        raise RuntimeError(
-            "libsql-experimental not installed. Run: pip install libsql-experimental"
-        )
-
-
-def _get_sqlite_conn(db_path):
-    """Get a local SQLite connection."""
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def _rows_to_dicts(rows, columns):
-    """Convert list of tuples to list of dicts (for Turso results)."""
-    return [dict(zip(columns, row)) for row in rows]
-
-
-def _row_to_dict(row, columns):
-    """Convert a single tuple to dict (for Turso result)."""
-    if row is None:
-        return None
-    return dict(zip(columns, row))
-
 
 class Database:
-    """Database manager for Loom – supports Turso (prod) and SQLite (dev)."""
+    """Database manager for Loom – pure SQLite, file-based."""
 
-    def __init__(self, db_path="sync_data.db"):
+    def __init__(self, db_path=None):
+        if db_path is None:
+            # Default: store next to this file
+            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "loom.db")
         self.db_path = db_path
         self._init_db()
 
     def _get_conn(self):
-        if USE_TURSO:
-            return _get_turso_conn()
-        return _get_sqlite_conn(self.db_path)
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
 
     def _init_db(self):
         """Create tables if they don't exist."""
@@ -107,7 +60,7 @@ class Database:
             )
         """)
 
-        # Create indexes for fast lookups
+        # Indexes
         c.execute("CREATE INDEX IF NOT EXISTS idx_report_tracking ON sync_report(tracking_number)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_report_order ON sync_report(order_number)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON sync_logs(timestamp)")
@@ -152,10 +105,7 @@ class Database:
             "SELECT * FROM sync_logs ORDER BY id DESC LIMIT ?",
             (limit,),
         )
-        if USE_TURSO:
-            rows = _rows_to_dicts(c.fetchall(), SYNC_LOGS_COLUMNS)
-        else:
-            rows = [dict(r) for r in c.fetchall()]
+        rows = [dict(r) for r in c.fetchall()]
         conn.close()
         return rows
 
@@ -202,10 +152,7 @@ class Database:
                 (limit,),
             )
         
-        if USE_TURSO:
-            rows = _rows_to_dicts(c.fetchall(), SYNC_REPORT_COLUMNS)
-        else:
-            rows = [dict(r) for r in c.fetchall()]
+        rows = [dict(r) for r in c.fetchall()]
         conn.close()
         return rows
 
@@ -214,20 +161,12 @@ class Database:
         conn = self._get_conn()
         c = conn.cursor()
         c.execute("SELECT * FROM sync_logs ORDER BY id DESC LIMIT 1")
+        log = c.fetchone()
+        if not log:
+            conn.close()
+            return None
         
-        if USE_TURSO:
-            row = c.fetchone()
-            if not row:
-                conn.close()
-                return None
-            log_dict = _row_to_dict(row, SYNC_LOGS_COLUMNS)
-        else:
-            log = c.fetchone()
-            if not log:
-                conn.close()
-                return None
-            log_dict = dict(log)
-
+        log_dict = dict(log)
         c.execute(
             """SELECT shopify_status, COUNT(*) as count 
                FROM sync_report 
@@ -235,11 +174,7 @@ class Database:
                GROUP BY shopify_status""",
             (log_dict["id"],),
         )
-        
-        if USE_TURSO:
-            status_counts = {r[0]: r[1] for r in c.fetchall()}
-        else:
-            status_counts = {r["shopify_status"]: r["count"] for r in c.fetchall()}
+        status_counts = {r["shopify_status"]: r["count"] for r in c.fetchall()}
         conn.close()
         
         log_dict["status_counts"] = status_counts

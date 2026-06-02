@@ -1,6 +1,7 @@
 """
 Loom – Flask Backend
-Shopify Embedded App for Mettwear PostEx delivery status sync.
+Shopify Embedded App for PostEx delivery status sync.
+100% Free deployment: PythonAnywhere + SQLite + cron-job.org
 """
 
 import os
@@ -10,7 +11,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Load .env file FIRST, before reading any env vars
+# Load .env file FIRST
 load_dotenv()
 
 from shopify_api import ShopifyAPI
@@ -20,7 +21,12 @@ from database import Database
 
 # ── App Setup ───────────────────────────────────────────────────────────
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=[
+    "https://*.vercel.app",
+    "https://*.netlify.app",
+    "https://*.myshopify.com",
+    "http://localhost:3000",
+])
 
 # ── Config from Environment ─────────────────────────────────────────────
 SHOPIFY_CLIENT_ID = os.environ.get("SHOPIFY_CLIENT_ID", "")
@@ -29,10 +35,10 @@ SHOPIFY_STORE_URL = os.environ.get("SHOPIFY_STORE_URL", "")
 SHOPIFY_ACCESS_TOKEN = os.environ.get("SHOPIFY_ACCESS_TOKEN", "")
 POSTEX_TOKEN = os.environ.get("POSTEX_TOKEN", "")
 APP_URL = os.environ.get("APP_URL", "")
-DATABASE_PATH = os.environ.get("DATABASE_PATH", "sync_data.db")
+DATABASE_PATH = os.environ.get("DATABASE_PATH", "")
 
 # ── Initialize Services ─────────────────────────────────────────────────
-db = Database(DATABASE_PATH)
+db = Database(DATABASE_PATH if DATABASE_PATH else None)
 
 
 def get_shopify():
@@ -50,8 +56,12 @@ def get_postex():
 
 @app.route("/api/health", methods=["GET"])
 def health():
-    """Health check endpoint."""
-    return jsonify({"status": "ok", "app": "Loom", "time": datetime.now(timezone.utc).isoformat()})
+    """Health check endpoint – used by cron-job.org and uptime monitors."""
+    return jsonify({
+        "status": "ok",
+        "app": "Loom",
+        "time": datetime.now(timezone.utc).isoformat(),
+    })
 
 
 @app.route("/api/token", methods=["GET"])
@@ -67,16 +77,10 @@ def verify_token():
 
 @app.route("/api/auth/shopify", methods=["GET"])
 def auth_shopify():
-    """
-    Shopify OAuth installer endpoint.
-    When merchant visits this URL, it initiates the OAuth flow.
-    """
+    """Shopify OAuth installer endpoint."""
     shop = request.args.get("shop")
     if not shop:
         return jsonify({"error": "Missing shop parameter"}), 400
-
-    # For custom (client_credentials) apps, just redirect to the app URL
-    # In production, this would handle the full OAuth flow
     return jsonify({
         "message": "Loom app authentication",
         "shop": shop,
@@ -148,7 +152,7 @@ def sync():
                 "error": "Not found in PostEx response",
             })
 
-            # Run rule engine
+            # Run 6-priority rule engine
             rule_result = evaluate(
                 postex_status=track_data["status"],
                 history=track_data.get("history", []),
@@ -157,7 +161,7 @@ def sync():
 
             processed += 1
 
-            # Log to sync_report
+            # Log to database
             db.add_report_entry(
                 sync_log_id=log_id,
                 order_number=str(order.get("order_number", "")),
@@ -184,7 +188,6 @@ def sync():
                         failed += 1
                 except Exception as e:
                     failed += 1
-                    # Update report with error
                     db.add_report_entry(
                         sync_log_id=log_id,
                         order_number=str(order.get("order_number", "")),
@@ -226,7 +229,7 @@ def sync():
             "orders_updated": updated,
             "orders_failed": failed,
             "dry_run": dry_run,
-            "results": results[:50],  # Limit results in response
+            "results": results[:50],
         })
 
     except Exception as e:
@@ -303,7 +306,6 @@ def manual_fail():
             else:
                 return jsonify({"error": f"Order #{order_number} not found"}), 404
         else:
-            # We need to find fulfillment_id for this tracking number
             orders = shopify.fetch_postex_orders(quick=True)
             fulfillment_id = None
             for o in orders:

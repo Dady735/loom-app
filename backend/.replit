@@ -1,0 +1,9 @@
+run = "gunicorn app:app --bind 0.0.0.0:5000"
+language = "python3"
+
+[pack]
+tools = ["python3"]
+
+[pack.features]
+packageSearch = true
+guessImports = true

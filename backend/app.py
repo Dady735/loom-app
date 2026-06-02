@@ -89,7 +89,7 @@ def auth_shopify():
     })
 
 
-@app.route("/api/sync", methods=["POST"])
+@app.route("/api/sync", methods=["POST", "GET"])
 def sync():
     """
     Trigger a sync between PostEx tracking statuses and Shopify fulfillment events.

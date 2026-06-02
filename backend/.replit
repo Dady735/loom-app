@@ -1,9 +1,15 @@
-run = "gunicorn app:app --bind 0.0.0.0:5000"
-language = "python3"
+run = "python main.py"
+
+[nix]
+channel = "stable-24_05"
 
 [pack]
-tools = ["python3"]
+language = "python3"
 
-[pack.features]
-packageSearch = true
-guessImports = true
+[deployment]
+run = ["sh", "-c", "python main.py"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 5000
+externalPort = 80

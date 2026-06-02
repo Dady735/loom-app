@@ -1,0 +1,33 @@
+{
+  "name": "loom-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Loom – PostEx Delivery Status Sync for Shopify",
+  "dependencies": {
+    "@shopify/app-bridge-react": "^4.1.0",
+    "@shopify/polaris": "^13.9.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "react-scripts": "5.0.1"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "lint": "react-scripts lint 2>/dev/null || true"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

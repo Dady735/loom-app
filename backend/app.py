@@ -7,7 +7,7 @@ Shopify Embedded App for PostEx delivery status sync.
 import os
 import json
 from datetime import datetime, timezone
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -25,7 +25,10 @@ CORS(app, origins=[
     "https://*.vercel.app",
     "https://*.netlify.app",
     "https://*.myshopify.com",
+    "https://*.replit.dev",
+    "https://*.repl.co",
     "http://localhost:3000",
+    "http://localhost:5000",
 ])
 
 # ── Config from Environment ─────────────────────────────────────────────
@@ -383,7 +386,35 @@ def dashboard():
     })
 
 
+# ── Serve React Frontend (production) ──────────────────────────────────
+# When REACT_BUILD_DIR is set, serve the built React app from Flask.
+# This allows a single port for both API and frontend on Replit.
+REACT_BUILD_DIR = os.environ.get("REACT_BUILD_DIR", "")
+
+
+if REACT_BUILD_DIR and os.path.isdir(REACT_BUILD_DIR):
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_react(path):
+        """Serve React frontend. API routes take priority."""
+        # If the path starts with 'api/', let Flask handle it (API route)
+        if path.startswith("api/"):
+            return jsonify({"error": "Not found"}), 404
+        
+        # Try to serve the specific file
+        file_path = os.path.join(REACT_BUILD_DIR, path)
+        if path and os.path.isfile(file_path):
+            return send_from_directory(REACT_BUILD_DIR, path)
+        
+        # Fall back to index.html for client-side routing
+        return send_from_directory(REACT_BUILD_DIR, "index.html")
+    
+    print(f"[Loom] Serving React frontend from: {REACT_BUILD_DIR}")
+
+
 # ── Main ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    print(f"[Loom] Starting on port {port}")
+    print(f"[Loom] React build dir: {REACT_BUILD_DIR or 'not set (API-only mode)'}")
+    app.run(host="0.0.0.0", port=port, debug=False)

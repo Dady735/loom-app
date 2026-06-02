@@ -14,7 +14,7 @@ import {
   SkeletonBodyText,
 } from '@shopify/polaris';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://loom-app.tabishkhan6297.repl.co';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const STATUS_BADGE_MAP = {
   DELIVERED: 'success',

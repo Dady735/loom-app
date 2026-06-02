@@ -13,7 +13,7 @@ import {
 } from '@shopify/polaris';
 import { AlertTriangleIcon } from '@shopify/polaris-icons';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://loom-app.tabishkhan6297.repl.co';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 export default function ManualOverride() {
   const [orderNumber, setOrderNumber] = useState('');

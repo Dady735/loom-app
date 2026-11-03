@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-*.pyo
-.env
-loom.db
-*.db
-node_modules/
-.build/
-.replit_state

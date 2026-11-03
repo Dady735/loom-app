@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics Dashboard</title>
+<!--
+  ============================================================================
+  ANALYTICS ONLY  —  extracted from Index.html
+  ============================================================================
+  Is file mein sirf Analytics wala code hai: HTML + CSS + JS, sab inline.
+  Doosre modules (Orders, Sync, Delay Tracker, Logistics Search, Complaints)
+  yahan nahi hain.
+
+  DATA SOURCE:
+  * Google Apps Script (HtmlService) mein deploy karne par ye file
+    google.script.run.analyticsGetData(days) call karti hai — server-side
+    Analytics.js aapke Apps Script project mein hona chahiye.
+  * Plain browser / local file mein kholne par `window.ANALYTICS_DATA`
+    (object ya function(days)) use hota hai, warna neeche diya DEMO data
+    render hota hai taake dashboard foran dikhe.
+    Apna real data lagane ke liye:  window.ANALYTICS_DATA = {...};
+  * Charts ke liye Chart.js 4.4.7 CDN se load hota hai.
+  ============================================================================
+-->
+<style>
+/* ==================== RESET + PALETTE ==================== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#04060e;
+  --card:rgba(14,19,38,.72);
+  --card-hover:rgba(33,44,80,.55);
+  --surface-3:rgba(33,44,80,.40);
+  --primary:#22d3ee;
+  --primary-hover:#67e8f9;
+  --primary-soft:rgba(34,211,238,.12);
+  --success:#34d399;
+  --success-soft:rgba(52,211,153,.13);
+  --danger:#fb7185;
+  --danger-soft:rgba(251,113,133,.13);
+  --warning:#fbbf24;
+  --warning-soft:rgba(251,191,36,.13);
+  --info:#60a5fa;
+  --info-soft:rgba(96,165,250,.13);
+  --text:#eaf0ff;
+  --sec:#93a0c2;
+  --muted:#5c688a;
+  --border:rgba(129,158,255,.11);
+  --border-strong:rgba(129,158,255,.22);
+  --input-bg:rgba(6,9,20,.78);
+  --th-bg:rgba(9,13,26,.94);
+  --radius:12px;
+  --radius-lg:16px;
+  --shadow-sm:0 1px 3px rgba(2,5,15,.45);
+  --shadow-md:0 14px 38px -12px rgba(2,5,18,.75);
+  --focus:0 0 0 3px rgba(34,211,238,.22);
+  --grad-primary:linear-gradient(120deg,#22d3ee 0%,#818cf8 52%,#e879f9 100%);
+}
+body.light{
+  --bg:#eef2fb;
+  --card:rgba(255,255,255,.80);
+  --card-hover:rgba(226,234,250,.90);
+  --surface-3:rgba(226,234,250,.75);
+  --primary:#0e7490;
+  --primary-hover:#155e75;
+  --primary-soft:rgba(6,182,212,.12);
+  --success:#059669;--success-soft:rgba(5,150,105,.10);
+  --danger:#e11d48;--danger-soft:rgba(225,29,72,.10);
+  --warning:#d97706;--warning-soft:rgba(217,119,6,.12);
+  --info:#2563eb;--info-soft:rgba(37,99,235,.10);
+  --text:#0c1322;--sec:#51607e;--muted:#8b98b5;
+  --border:rgba(15,35,80,.09);
+  --border-strong:rgba(15,35,80,.16);
+  --input-bg:rgba(255,255,255,.92);
+  --th-bg:rgba(240,244,252,.96);
+  --shadow-sm:0 1px 2px rgba(15,35,80,.06);
+  --shadow-md:0 14px 34px -12px rgba(15,35,80,.22);
+  --focus:0 0 0 3px rgba(6,182,212,.25);
+  --grad-primary:linear-gradient(120deg,#06b6d4 0%,#6366f1 52%,#c026d3 100%);
+}
+html{background:var(--bg);height:100%}
+body{
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color:var(--text);font-size:14px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  background:transparent;position:relative;min-height:100%;overflow-x:hidden;
+}
+body::before{
+  content:'';position:fixed;inset:-25%;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(38% 46% at 16% 22%, rgba(34,211,238,.17), transparent 62%),
+    radial-gradient(44% 52% at 84% 14%, rgba(129,140,248,.18), transparent 64%),
+    radial-gradient(48% 56% at 64% 88%, rgba(232,121,249,.13), transparent 62%),
+    radial-gradient(34% 40% at 8% 84%,  rgba(52,211,153,.08), transparent 60%);
+}
+body.light::before{
+  background:
+    radial-gradient(38% 46% at 16% 22%, rgba(6,182,212,.14), transparent 62%),
+    radial-gradient(44% 52% at 84% 14%, rgba(99,102,241,.13), transparent 64%),
+    radial-gradient(48% 56% at 64% 88%, rgba(192,38,211,.09), transparent 62%);
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select{font-family:inherit;color:inherit;background:none;border:none;outline:none}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+::selection{background:rgba(34,211,238,.3);color:#fff}
+body.light ::selection{background:rgba(6,182,212,.28);color:#04222e}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{
+  background:linear-gradient(180deg,rgba(34,211,238,.35),rgba(129,140,248,.35));
+  border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+}
+
+/* ==================== LAYOUT / HEADER ==================== */
+.main{max-width:1500px;margin:0 auto;padding:24px}
+.header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}
+.header h1{
+  font-size:22px;font-weight:800;letter-spacing:-.03em;
+  background:var(--grad-primary);background-size:160% 160%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+}
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  .header h1{color:var(--text);-webkit-text-fill-color:currentColor}
+}
+.header p{font-size:12px;color:var(--sec);margin-top:2px}
+.btn-grp{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{
+  padding:9px 16px;border-radius:var(--radius);
+  font-weight:600;font-size:12.5px;
+  display:inline-flex;align-items:center;gap:6px;
+  border:1px solid transparent;white-space:nowrap;
+  transition:background .2s,color .15s,border-color .15s,transform .15s,box-shadow .25s;
+}
+.btn:active{transform:scale(.97)}
+.btn-s{background:var(--card);color:var(--text);border-color:var(--border-strong)}
+.btn-s:hover{background:var(--card-hover);border-color:var(--primary);box-shadow:0 0 0 1px var(--primary-soft),0 8px 22px -12px rgba(34,211,238,.55)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+.filter-select{
+  padding:10px 14px;border:1px solid var(--border-strong);
+  border-radius:var(--radius);background:var(--input-bg);
+  font-size:13px;color:var(--text);cursor:pointer;
+  transition:border-color .18s,box-shadow .18s;
+}
+.filter-select:focus{border-color:var(--primary);box-shadow:var(--focus),0 0 22px -10px rgba(34,211,238,.6)}
+.filter-select option{background:#0b1020;color:#eaf0ff}
+body.light .filter-select option{background:#fff;color:#0c1322}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px}
+.card-pad{padding:20px}
+.sync-card-title{
+  font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--sec);margin-bottom:14px;
+}
+
+/* ==================== TOAST / LOADER ==================== */
+.toast{
+  position:fixed;bottom:24px;right:24px;
+  padding:12px 20px;font-weight:600;font-size:13px;z-index:9999;
+  display:flex;align-items:center;gap:8px;
+  transform:translateY(120%);opacity:0;
+  transition:transform .25s ease,opacity .2s;
+  pointer-events:none;max-width:380px;
+  background:linear-gradient(120deg,#059669,#34d399);
+  border-radius:14px;color:#fff;
+  box-shadow:0 16px 40px -12px rgba(5,150,105,.65),inset 0 1px 0 rgba(255,255,255,.22);
+}
+.toast.show{transform:translateY(0);opacity:1;pointer-events:auto}
+.toast.error{background:linear-gradient(120deg,#e11d48,#fb7185);box-shadow:0 16px 40px -12px rgba(225,29,72,.6),inset 0 1px 0 rgba(255,255,255,.2)}
+#loader{position:fixed;top:0;left:0;width:100%;height:3px;background:transparent;z-index:9999;display:none}
+#loader::after{
+  content:'';display:block;height:100%;width:40%;
+  border-radius:0 2px 2px 0;
+  background:var(--grad-primary);background-size:220% 100%;
+  box-shadow:0 0 16px rgba(34,211,238,.85);
+  animation:loadAnim 1.1s infinite ease-in-out;
+}
+@keyframes loadAnim{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
+
+/* ==================== ANALYTICS KPIs ==================== */
+.an-kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:1200px){.an-kpi-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:680px){.an-kpi-row{grid-template-columns:repeat(2,1fr)}}
+.an-kpi{
+  position:relative;overflow:hidden;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:16px 18px;
+  border-left:3px solid var(--primary);
+  transition:transform .22s,box-shadow .22s,border-color .22s;
+}
+.an-kpi::after{
+  content:'';position:absolute;top:-42%;right:-16%;width:150px;height:150px;border-radius:50%;
+  background:radial-gradient(circle,rgba(129,140,248,.16),transparent 68%);
+  pointer-events:none;transition:opacity .25s;opacity:.75;
+}
+.an-kpi:hover{transform:translateY(-3px);border-color:var(--border-strong);box-shadow:0 18px 40px -18px rgba(2,5,18,.85),0 0 26px -14px rgba(34,211,238,.5)}
+.an-kpi:hover::after{opacity:1}
+.an-kpi-success{border-left-color:var(--success)}
+.an-kpi-info{border-left-color:var(--info)}
+.an-kpi-danger{border-left-color:var(--danger)}
+.an-kpi-warn{border-left-color:var(--warning)}
+.an-kpi-primary{border-left-color:var(--primary)}
+.an-kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sec);margin-bottom:6px}
+.an-kpi-val{font-size:26px;font-weight:800;letter-spacing:-.03em;line-height:1.1;color:var(--text)}
+.an-kpi-sub{font-size:11px;color:var(--sec);margin-top:4px;font-weight:500}
+
+.an-fin-strip{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:12px;
+  padding:14px 18px;background:var(--card);position:relative;overflow:hidden;
+  border:1px solid var(--border);border-radius:var(--radius-lg);
+  margin-bottom:16px;
+}
+.an-fin-strip::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(105deg,transparent 40%,rgba(34,211,238,.06) 50%,transparent 60%);
+}
+@media(max-width:900px){.an-fin-strip{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.an-fin-strip{grid-template-columns:1fr}}
+.an-fin-item{display:flex;flex-direction:column;gap:3px}
+.an-fin-item .k{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sec)}
+.an-fin-item .v{font-size:16px;font-weight:700;color:var(--text)}
+
+/* ==================== ANALYTICS CHARTS ==================== */
+.an-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.an-charts-grid{grid-template-columns:1fr}}
+.an-span-2{grid-column:span 2}
+@media(max-width:900px){.an-span-2{grid-column:span 1}}
+.an-chart-box{position:relative;height:260px;min-height:220px}
+.an-chart-tall{height:300px}
+
+/* ==================== CITIES TABLE ==================== */
+.sync-table-wrap{
+  max-height:400px;overflow-y:auto;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-md);
+  -webkit-overflow-scrolling:touch;position:relative;
+}
+.sync-table{width:100%;border-collapse:collapse;font-size:13px;min-width:880px}
+.sync-table th{
+  background:var(--th-bg);color:var(--sec);
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;
+  padding:11px 14px;text-align:left;white-space:nowrap;
+  border-bottom:1px solid var(--border-strong);
+  position:sticky;top:0;z-index:1;
+}
+.sync-table td{padding:10px 14px;font-size:12.5px;border-bottom:1px solid var(--border);vertical-align:middle}
+.sync-table tbody tr{transition:background .14s}
+.sync-table tbody tr:hover{background:linear-gradient(90deg,rgba(34,211,238,.07),rgba(129,140,248,.045) 55%,transparent)}
+body.light .sync-table tbody tr:hover{background:linear-gradient(90deg,rgba(6,182,212,.07),rgba(99,102,241,.05) 55%,transparent)}
+.sync-table tbody tr:last-child td{border-bottom:none}
+#anCityBody tr td:first-child{font-weight:600}
+.an-rate-pill{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700}
+.an-rate-good{background:var(--success-soft);color:#34d399}
+.an-rate-mid{background:var(--warning-soft);color:#fbbf24}
+.an-rate-bad{background:var(--danger-soft);color:#f87171}
+
+/* ==================== RESPONSIVE ==================== */
+@media(max-width:768px){
+  .main{padding:14px}
+  .header{gap:10px}
+  .header h1{font-size:18px}
+  .header p{font-size:11px}
+  .btn-grp{width:100%}
+  .btn-grp .btn{flex:1 1 auto;justify-content:center}
+}
+@media(max-width:680px){
+  .sync-table{min-width:0;width:100%}
+  .sync-table-wrap{overflow-x:visible;border:none;background:none;max-height:none;box-shadow:none}
+  .sync-table thead{display:none}
+  .sync-table tbody tr{
+    display:block;background:var(--card);
+    border:1px solid var(--border);border-radius:var(--radius-lg);
+    margin-bottom:10px;padding:6px 4px;box-shadow:var(--shadow-sm);
+  }
+  .sync-table tbody tr:hover{background:var(--card)}
+  .sync-table td{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:12px;text-align:right;padding:8px 12px;
+    border-bottom:1px solid var(--border);
+    white-space:normal;
+  }
+  .sync-table td:last-child{border-bottom:none}
+  .sync-table td[data-label]::before{
+    content:attr(data-label);
+    font-size:10.5px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.06em;
+    color:var(--sec);text-align:left;flex-shrink:0;
+  }
+  .sync-table td:not([data-label]){justify-content:center;text-align:center;display:block}
+}
+@media(max-width:420px){.header .btn-grp{flex-direction:column}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<div id="loader"></div>
+<div id="toast" class="toast"><span id="toastIcon">✓</span><span id="toastMsg"></span></div>
+
+<main class="main">
+
+  <div class="header">
+    <div>
+      <h1>Analytics Dashboard</h1>
+      <p>Real-time insights from Orders Sheet — status, couriers, cities, trends</p>
+    </div>
+    <div class="btn-grp">
+      <select class="filter-select" id="anDays" onchange="analyticsLoad(true)">
+        <option value="7">Last 7 Days</option>
+        <option value="15">Last 15 Days</option>
+        <option value="30" selected>Last 30 Days</option>
+        <option value="60">Last 60 Days</option>
+        <option value="90">Last 90 Days</option>
+        <option value="180">Last 180 Days</option>
+        <option value="365">Last 1 Year</option>
+      </select>
+      <button class="btn btn-s" onclick="analyticsLoad(true)">Refresh</button>
+      <button class="btn btn-s" onclick="anExportCSV()">Export CSV</button>
+      <button class="btn btn-s" onclick="toggleTheme()" title="Toggle light / dark">◐ Theme</button>
+    </div>
+  </div>
+
+  <div class="an-kpi-row">
+    <div class="an-kpi">
+      <div class="an-kpi-lbl">Total Orders</div>
+      <div class="an-kpi-val" id="anTotal">—</div>
+      <div class="an-kpi-sub" id="anTotalSub">—</div>
+    </div>
+    <div class="an-kpi an-kpi-success">
+      <div class="an-kpi-lbl">Delivered</div>
+      <div class="an-kpi-val" id="anDelivered">—</div>
+      <div class="an-kpi-sub" id="anDeliveredSub">—</div>
+    </div>
+    <div class="an-kpi an-kpi-info">
+      <div class="an-kpi-lbl">In Transit</div>
+      <div class="an-kpi-val" id="anTransit">—</div>
+      <div class="an-kpi-sub" id="anTransitSub">—</div>
+    </div>
+    <div class="an-kpi an-kpi-danger">
+      <div class="an-kpi-lbl">Failed / Return</div>
+      <div class="an-kpi-val" id="anFailed">—</div>
+      <div class="an-kpi-sub" id="anFailedSub">—</div>
+    </div>
+    <div class="an-kpi an-kpi-warn">
+      <div class="an-kpi-lbl">Delivery Rate</div>
+      <div class="an-kpi-val" id="anRate">—</div>
+      <div class="an-kpi-sub">success %</div>
+    </div>
+    <div class="an-kpi an-kpi-primary">
+      <div class="an-kpi-lbl">Avg COD</div>
+      <div class="an-kpi-val" id="anAvgCod">—</div>
+      <div class="an-kpi-sub" id="anAvgCodSub">—</div>
+    </div>
+  </div>
+
+  <div class="an-fin-strip">
+    <div class="an-fin-item"><span class="k">Total COD</span><span class="v" id="anCodTotal">—</span></div>
+    <div class="an-fin-item"><span class="k">Txn Fees</span><span class="v" id="anFeeTotal">—</span></div>
+    <div class="an-fin-item"><span class="k">Txn Tax</span><span class="v" id="anTaxTotal">—</span></div>
+    <div class="an-fin-item"><span class="k">Reversal Fees</span><span class="v" id="anRevFee">—</span></div>
+    <div class="an-fin-item"><span class="k">Avg Weight</span><span class="v" id="anAvgWeight">—</span></div>
+  </div>
+
+  <div class="an-charts-grid">
+    <div class="card card-pad">
+      <div class="sync-card-title">Orders by Status</div>
+      <div class="an-chart-box"><canvas id="anChartStatus"></canvas></div>
+    </div>
+    <div class="card card-pad">
+      <div class="sync-card-title">Courier Split</div>
+      <div class="an-chart-box"><canvas id="anChartCourier"></canvas></div>
+    </div>
+    <div class="card card-pad an-span-2">
+      <div class="sync-card-title">Daily Volume Trend</div>
+      <div class="an-chart-box an-chart-tall"><canvas id="anChartTrend"></canvas></div>
+    </div>
+    <div class="card card-pad">
+      <div class="sync-card-title">COD Distribution</div>
+      <div class="an-chart-box"><canvas id="anChartCod"></canvas></div>
+    </div>
+    <div class="card card-pad">
+      <div class="sync-card-title">Courier Performance</div>
+      <div class="an-chart-box"><canvas id="anChartPerf"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card card-pad" style="margin-top:20px">
+    <div class="sync-card-title">Top Cities — Volume &amp; Success</div>
+    <div class="sync-table-wrap" style="max-height:none">
+      <table class="sync-table">
+        <thead>
+          <tr>
+            <th>City</th>
+            <th>Total</th>
+            <th>Delivered</th>
+            <th>Failed</th>
+            <th>Success %</th>
+            <th>COD (Rs.)</th>
+          </tr>
+        </thead>
+        <tbody id="anCityBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+/* ==================== LAZY LOADER (Chart.js) ==================== */
+function loadScript(src){
+  return new Promise((res, rej) => {
+    if (document.querySelector('script[src="'+src+'"]')) return res();
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+function loadChartJs(){
+  if (window.Chart) return Promise.resolve();
+  return loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js');
+}
+
+/* ==================== DATA SOURCE ADAPTER ====================
+   Apps Script: google.script.run.analyticsGetData(days)  →  Analytics.js
+   Standalone : window.ANALYTICS_DATA (object / function) →  demo fallback
+   ============================================================ */
+function callServer(fnName){
+  const args = Array.prototype.slice.call(arguments, 1);
+  const gs = (typeof google !== 'undefined') && google.script && google.script.run;
+  if (gs && typeof gs[fnName] === 'function') {
+    return new Promise((resolve, reject) => {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fnName].apply(null, args);
+    });
+  }
+  if (fnName === 'analyticsGetData') {
+    const src = window.ANALYTICS_DATA;
+    return Promise.resolve(typeof src === 'function' ? src(args[0]) : (src || demoAnalytics(args[0])));
+  }
+  return Promise.reject(new Error('Server function not available: ' + fnName));
+}
+
+/* ---- OPTIONAL: demo data, sirf standalone preview ke liye (hata sakte hain) ---- */
+const DEMO_ANALYTICS = {
+  total: 4820, delivered: 3612, inTransit: 612, failed: 396,
+  attempted: 118, delayed: 54, other: 28,
+  deliveryRate: 74.9, failureRate: 8.2,
+  codTotal: 21450000, avgCod: 4450, avgWeight: 0.82,
+  feeTotal: 482000, taxTotal: 96400, revFeeTotal: 118500,
+  statusCounts: {
+    'Delivered': 3612, 'In Transit': 612, 'Out for Delivery': 190,
+    'Returned': 276, 'Delivery Failed': 120, 'Attempted': 118,
+    'Delayed': 54, 'Booked': 28
+  },
+  courierCounts: { PostEx: 3120, Rocket: 1420, Unassigned: 280 },
+  courierSuccess: {
+    PostEx:     { total: 3120, delivered: 2410, rate: 77.2 },
+    Rocket:     { total: 1420, delivered: 1022, rate: 72.0 },
+    Unassigned: { total: 280,  delivered: 180,  rate: 64.3 }
+  },
+  codBuckets: { '0-2k': 980, '2k-5k': 2140, '5k-10k': 1320, '10k+': 380 },
+  topCities: [
+    { city: 'Karachi',      total: 1320, delivered: 1010, failed: 108, cod: 6120000, successRate: 76.5 },
+    { city: 'Lahore',       total: 890,  delivered: 690,  failed: 72,  cod: 4180000, successRate: 77.5 },
+    { city: 'Hyderabad',    total: 520,  delivered: 372,  failed: 58,  cod: 2240000, successRate: 71.5 },
+    { city: 'Islamabad',    total: 410,  delivered: 322,  failed: 30,  cod: 1980000, successRate: 78.5 },
+    { city: 'Faisalabad',   total: 360,  delivered: 262,  failed: 38,  cod: 1540000, successRate: 72.8 },
+    { city: 'Multan',       total: 300,  delivered: 208,  failed: 36,  cod: 1290000, successRate: 69.3 },
+    { city: 'Peshawar',     total: 260,  delivered: 176,  failed: 30,  cod: 1120000, successRate: 67.7 },
+    { city: 'Quetta',       total: 180,  delivered: 112,  failed: 24,  cod: 760000,  successRate: 62.2 }
+  ]
+};
+function demoAnalytics(days){
+  days = parseInt(days, 10) || 30;
+  const trend = [];
+  const n = Math.min(days, 30);
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const wave = 1 + 0.18 * Math.sin(i * 0.7) + 0.09 * Math.cos(i * 0.31);
+    const total = Math.round(160 * wave);
+    trend.push({
+      date: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
+      total: total,
+      delivered: Math.round(total * 0.75),
+      failed: Math.round(total * 0.08)
+    });
+  }
+  return Object.assign({}, DEMO_ANALYTICS, {
+    days: days,
+    generatedAt: new Date().toISOString(),
+    dailyTrend: trend
+  });
+}
+
+/* ==================== SHARED HELPERS ==================== */
+function escapeHtml(s){
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function toggleTheme(){
+  const isLight = document.body.classList.toggle('light');
+  try { localStorage.setItem('theme', isLight ? 'light' : 'dark'); } catch(e){}
+  lxThemeBg(isLight);
+  if (anRaw) setTimeout(() => { try { anRenderCharts(anRaw); } catch(e){} }, 60);
+}
+function lxThemeBg(light){
+  try {
+    var c = light ? (getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#eef2fb') : '';
+    document.documentElement.style.backgroundColor = c;
+  } catch(e){}
+}
+(function(){ try { if (localStorage.getItem('theme') === 'light') { document.body.classList.add('light'); lxThemeBg(true); } } catch(e){} })();
+
+let toastTO;
+function showToast(msg, isErr){
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').textContent = isErr ? '✕' : '✓';
+  t.classList.toggle('error', !!isErr);
+  t.classList.add('show');
+  clearTimeout(toastTO);
+  toastTO = setTimeout(() => t.classList.remove('show'), 2800);
+}
+function showLoader(){ document.getElementById('loader').style.display='block'; }
+function hideLoader(){ document.getElementById('loader').style.display='none'; }
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+/* ==================== ANALYTICS ==================== */
+let anRaw = null;
+let anCharts = { status: null, courier: null, trend: null, cod: null, perf: null };
+let anLoading = false;
+
+async function analyticsLoad(force) {
+  if (anLoading) return;
+  anLoading = true;
+  showLoader();
+
+  const days = parseInt(document.getElementById('anDays').value, 10) || 30;
+
+  try {
+    const r = await callServer('analyticsGetData', days);
+    if (!r || r.error) {
+      showToast('Analytics error: ' + ((r && r.error) || 'unknown'), true);
+      return;
+    }
+    anRaw = r;
+    analyticsRender(r);
+    if (force) showToast('Analytics refreshed');
+  } catch (e) {
+    showToast('Analytics failed: ' + (e.message || e), true);
+  } finally {
+    hideLoader();
+    anLoading = false;
+  }
+}
+
+function anFmt(n) {
+  if (n == null || isNaN(n)) return '—';
+  if (n >= 1e7) return (n / 1e7).toFixed(2) + ' Cr';
+  if (n >= 1e5) return (n / 1e5).toFixed(2) + ' L';
+  if (n >= 1000) return n.toLocaleString();
+  return String(n);
+}
+
+function analyticsRender(d) {
+  document.getElementById('anTotal').textContent = anFmt(d.total);
+  document.getElementById('anTotalSub').textContent = 'Last ' + d.days + ' days';
+
+  document.getElementById('anDelivered').textContent = anFmt(d.delivered);
+  document.getElementById('anDeliveredSub').textContent =
+    (d.total ? ((d.delivered / d.total) * 100).toFixed(1) : 0) + '% of total';
+
+  document.getElementById('anTransit').textContent = anFmt(d.inTransit);
+  document.getElementById('anTransitSub').textContent =
+    'Attempted: ' + anFmt(d.attempted) + ' · Delayed: ' + anFmt(d.delayed);
+
+  document.getElementById('anFailed').textContent = anFmt(d.failed);
+  document.getElementById('anFailedSub').textContent =
+    (d.failureRate || 0) + '% failure rate';
+
+  document.getElementById('anRate').textContent = (d.deliveryRate || 0) + '%';
+
+  document.getElementById('anAvgCod').textContent = 'Rs. ' + anFmt(d.avgCod);
+  document.getElementById('anAvgCodSub').textContent = 'Total COD: Rs. ' + anFmt(d.codTotal);
+
+  document.getElementById('anCodTotal').textContent  = 'Rs. ' + anFmt(d.codTotal);
+  document.getElementById('anFeeTotal').textContent  = 'Rs. ' + anFmt(d.feeTotal);
+  document.getElementById('anTaxTotal').textContent  = 'Rs. ' + anFmt(d.taxTotal);
+  document.getElementById('anRevFee').textContent    = 'Rs. ' + anFmt(d.revFeeTotal);
+  document.getElementById('anAvgWeight').textContent = (d.avgWeight || 0) + ' kg';
+
+  const cb = document.getElementById('anCityBody');
+  if (!d.topCities || !d.topCities.length) {
+    cb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--sec)">No city data</td></tr>';
+  } else {
+    cb.innerHTML = d.topCities.map(c => {
+      const cls = c.successRate >= 70 ? 'an-rate-good' : c.successRate >= 40 ? 'an-rate-mid' : 'an-rate-bad';
+      return '<tr>' +
+        '<td data-label="City">' + escapeHtml(c.city) + '</td>' +
+        '<td data-label="Total">' + anFmt(c.total) + '</td>' +
+        '<td data-label="Delivered">' + anFmt(c.delivered) + '</td>' +
+        '<td data-label="Failed">' + anFmt(c.failed) + '</td>' +
+        '<td data-label="Success %"><span class="an-rate-pill ' + cls + '">' + c.successRate + '%</span></td>' +
+        '<td data-label="COD">Rs. ' + anFmt(c.cod) + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  anRenderCharts(d);
+}
+
+async function anRenderCharts(d) {
+  try { await loadChartJs(); } catch (e) { showToast('Chart.js load nahi hua', true); return; }
+
+  const isLight = document.body.classList.contains('light');
+  const textColor = isLight ? '#0b1220' : '#eef2ff';
+  const subText = isLight ? '#475569' : '#94a3b8';
+  const gridColor = isLight ? 'rgba(15,23,42,.06)' : 'rgba(148,163,184,.08)';
+  const commonOpts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: textColor, boxWidth: 12, padding: 14, font: { size: 11, weight: '600' } } } },
+    animation: { duration: 700, easing: 'easeOutQuart' },
+  };
+
+  const statusLabels = ['Delivered', 'In Transit', 'Attempted', 'Failed', 'Delayed', 'Other'];
+  const statusValues = [d.delivered, d.inTransit, d.attempted, d.failed, d.delayed, d.other];
+  const statusColors = ['#34d399', '#60a5fa', '#fbbf24', '#fb7185', '#d97706', '#94a3b8'];
+  if (anCharts.status) anCharts.status.destroy();
+  anCharts.status = new Chart(document.getElementById('anChartStatus'), {
+    type: 'doughnut',
+    data: { labels: statusLabels, datasets: [{ data: statusValues, backgroundColor: statusColors, borderWidth: 0, hoverOffset: 8 }] },
+    options: Object.assign({}, commonOpts, { cutout: '65%', plugins: Object.assign({}, commonOpts.plugins, { legend: { position: 'bottom', labels: commonOpts.plugins.legend.labels } }) }),
+  });
+
+  const cLabels = ['PostEx', 'Rocket', 'Unassigned'];
+  const cValues = [d.courierCounts.PostEx || 0, d.courierCounts.Rocket || 0, d.courierCounts.Unassigned || 0];
+  const cColors = ['#7c7cff', '#c084fc', '#94a3b8'];
+  if (anCharts.courier) anCharts.courier.destroy();
+  anCharts.courier = new Chart(document.getElementById('anChartCourier'), {
+    type: 'doughnut',
+    data: { labels: cLabels, datasets: [{ data: cValues, backgroundColor: cColors, borderWidth: 0, hoverOffset: 8 }] },
+    options: Object.assign({}, commonOpts, { cutout: '65%', plugins: Object.assign({}, commonOpts.plugins, { legend: { position: 'bottom', labels: commonOpts.plugins.legend.labels } }) }),
+  });
+
+  const trend = d.dailyTrend || [];
+  const tLabels = trend.map(x => x.date.slice(5));
+  const tTotal = trend.map(x => x.total);
+  const tDel = trend.map(x => x.delivered);
+  const tFail = trend.map(x => x.failed);
+  if (anCharts.trend) anCharts.trend.destroy();
+  anCharts.trend = new Chart(document.getElementById('anChartTrend'), {
+    type: 'line',
+    data: {
+      labels: tLabels,
+      datasets: [
+        { label: 'Total', data: tTotal, borderColor: '#7c7cff', backgroundColor: 'rgba(124,124,255,.14)', tension: .4, fill: true, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2.5 },
+        { label: 'Delivered', data: tDel, borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,.08)', tension: .4, fill: false, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2.5 },
+        { label: 'Failed', data: tFail, borderColor: '#fb7185', backgroundColor: 'rgba(251,113,133,.08)', tension: .4, fill: false, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2.5 },
+      ],
+    },
+    options: Object.assign({}, commonOpts, {
+      plugins: Object.assign({}, commonOpts.plugins, { legend: { position: 'top', labels: commonOpts.plugins.legend.labels } }),
+      interaction: { intersect: false, mode: 'index' },
+      scales: {
+        x: { grid: { color: gridColor, drawBorder: false }, ticks: { color: subText, font: { size: 10, weight: '600' }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+        y: { grid: { color: gridColor, drawBorder: false }, ticks: { color: subText, font: { size: 10, weight: '600' } }, beginAtZero: true },
+      },
+    }),
+  });
+
+  const cbLabels = Object.keys(d.codBuckets || {});
+  const cbValues = cbLabels.map(k => d.codBuckets[k]);
+  const cbColors = ['#60a5fa', '#818cf8', '#c084fc', '#e879f9'];
+  if (anCharts.cod) anCharts.cod.destroy();
+  anCharts.cod = new Chart(document.getElementById('anChartCod'), {
+    type: 'bar',
+    data: { labels: cbLabels, datasets: [{ label: 'Orders', data: cbValues, backgroundColor: cbColors, borderRadius: 8, barThickness: 34 }] },
+    options: Object.assign({}, commonOpts, {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: subText, font: { size: 11, weight: '600' } } },
+        y: { grid: { color: gridColor, drawBorder: false }, ticks: { color: subText, font: { size: 10, weight: '600' } }, beginAtZero: true },
+      },
+    }),
+  });
+
+  const perfLabels = ['PostEx', 'Rocket', 'Unassigned'];
+  const perfTotal = perfLabels.map(c => (d.courierSuccess[c] || {}).total || 0);
+  const perfDel   = perfLabels.map(c => (d.courierSuccess[c] || {}).delivered || 0);
+  if (anCharts.perf) anCharts.perf.destroy();
+  anCharts.perf = new Chart(document.getElementById('anChartPerf'), {
+    type: 'bar',
+    data: {
+      labels: perfLabels,
+      datasets: [
+        { label: 'Total', data: perfTotal, backgroundColor: '#7c7cff', borderRadius: 8, barThickness: 26 },
+        { label: 'Delivered', data: perfDel, backgroundColor: '#34d399', borderRadius: 8, barThickness: 26 },
+      ],
+    },
+    options: Object.assign({}, commonOpts, {
+      plugins: Object.assign({}, commonOpts.plugins, { legend: { position: 'top', labels: commonOpts.plugins.legend.labels } }),
+      scales: {
+        x: { grid: { display: false }, ticks: { color: subText, font: { size: 11, weight: '600' } } },
+        y: { grid: { color: gridColor, drawBorder: false }, ticks: { color: subText, font: { size: 10, weight: '600' } }, beginAtZero: true },
+      },
+    }),
+  });
+}
+
+function anExportCSV() {
+  if (!anRaw) { showToast('Load analytics first', true); return; }
+  const d = anRaw;
+  const rows = [];
+  rows.push(['Metric', 'Value']);
+  rows.push(['Days', d.days]);
+  rows.push(['Total Orders', d.total]);
+  rows.push(['Delivered', d.delivered]);
+  rows.push(['In Transit', d.inTransit]);
+  rows.push(['Attempted', d.attempted]);
+  rows.push(['Failed', d.failed]);
+  rows.push(['Delayed', d.delayed]);
+  rows.push(['Delivery Rate %', d.deliveryRate]);
+  rows.push(['Failure Rate %', d.failureRate]);
+  rows.push(['Total COD (Rs)', d.codTotal]);
+  rows.push(['Avg COD (Rs)', d.avgCod]);
+  rows.push(['Avg Weight (kg)', d.avgWeight]);
+  rows.push(['Txn Fees (Rs)', d.feeTotal]);
+  rows.push(['Txn Tax (Rs)', d.taxTotal]);
+  rows.push(['Reversal Fees (Rs)', d.revFeeTotal]);
+  rows.push([]);
+  rows.push(['Top Cities', 'Total', 'Delivered', 'Failed', 'Success %', 'COD']);
+  (d.topCities || []).forEach(c => rows.push([c.city, c.total, c.delivered, c.failed, c.successRate, c.cod]));
+
+  const csv = rows.map(r => r.map(v => {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\n');
+
+  downloadBlob(csv, 'analytics_' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv');
+  showToast('Exported');
+}
+
+/* ==================== BOOT ==================== */
+let resizeTO;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTO);
+  resizeTO = setTimeout(() => { if (anRaw) { try { anRenderCharts(anRaw); } catch(e){} } }, 250);
+});
+document.addEventListener('DOMContentLoaded', () => analyticsLoad());
+</script>
+</body>
+</html>

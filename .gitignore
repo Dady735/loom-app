@@ -1,0 +1,16 @@
+node_modules/
+dist/
+server-dist/
+data/
+backups/
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+playwright-report/
+test-results/
+.test-data/
+.playwright-cli/
+.cache/
+Unselected files/
